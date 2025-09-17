@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Expense & Income Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}</style>
+</head>
+<body class="bg-slate-50 min-h-screen p-6">
+  <div class="max-w-5xl mx-auto">
+    <header class="mb-6">
+      <div class="bg-white rounded-2xl p-6 shadow-md flex items-center gap-4">
+        <div class="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-500 rounded-xl flex items-center justify-center text-white text-lg font-bold">¥</div>
+        <div>
+          <h1 class="text-2xl font-extrabold">Pencatatan Pemasukan & Pengeluaran</h1>
+          <p class="text-sm text-slate-500">Simpan catatan, lihat ringkasan, dan ekspor ke Excel (.xlsx)</p>
+        </div>
+        <div id="userControls" class="ml-auto text-sm"></div>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- form -->
+      <section class="lg:col-span-1">
+        <div class="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 class="font-semibold text-lg mb-4">Tambah Transaksi</h2>
+          <form id="entryForm" class="space-y-3">
+            <div>
+              <label class="text-sm">Tanggal</label>
+              <input id="date" type="date" class="w-full mt-1 p-2 border rounded-md" required>
+            </div>
+            <div>
+              <label class="text-sm">Tipe</label>
+              <select id="type" class="w-full mt-1 p-2 border rounded-md">
+                <option value="expense">Pengeluaran</option>
+                <option value="income">Pemasukan</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm">Kategori</label>
+              <input id="category" placeholder="Misal: Makan / Gaji / Transport" class="w-full mt-1 p-2 border rounded-md">
+            </div>
+            <div>
+              <label class="text-sm">Jumlah (Rp)</label>
+              <input id="amount" type="number" min="0" step="1" placeholder="0" class="w-full mt-1 p-2 border rounded-md" required>
+            </div>
+            <div>
+              <label class="text-sm">Catatan (opsional)</label>
+              <input id="note" placeholder="Catatan singkat" class="w-full mt-1 p-2 border rounded-md">
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button id="saveBtn" type="submit" class="flex-1 bg-indigo-600 text-white p-2 rounded-lg font-semibold">Simpan</button>
+              <button id="clearForm" type="button" class="bg-slate-100 p-2 rounded-lg">Reset</button>
+            </div>
+          </form>
+
+          <div class="mt-6 text-sm text-slate-500">
+            <p>Data tersimpan di browser (LocalStorage) per akun. Kamu bisa mengekspor ke Excel kapan saja.</p>
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <button id="exportXlsx" class="bg-green-600 text-white p-2 rounded-lg flex-1">Ekspor ke Excel (.xlsx)</button>
+            <button id="importCsv" class="bg-amber-400 text-white p-2 rounded-lg">Impor CSV / Excel</button>
+          </div>
+
+          <div class="mt-3 flex gap-2">
+            <button id="sampleData" class="text-sm p-2 border rounded-md">Tambah Contoh Data</button>
+            <button id="clearAll" class="text-sm p-2 border rounded-md">Hapus Semua Data</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- summary -->
+      <section class="lg:col-span-2">
+        <div class="bg-white rounded-2xl p-6 shadow-sm mb-4">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-semibold text-lg">Ringkasan</h2>
+            <div class="text-sm text-slate-500">Filter: <input id="filterText" placeholder="Cari kategori atau catatan..." class="ml-2 p-1 border rounded-md"></div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-4 rounded-lg bg-slate-50">
+              <div class="text-sm text-slate-500">Total Pemasukan</div>
+              <div id="totalIncome" class="text-xl font-bold mt-1">Rp 0</div>
+            </div>
+            <div class="p-4 rounded-lg bg-slate-50">
+              <div class="text-sm text-slate-500">Total Pengeluaran</div>
+              <div id="totalExpense" class="text-xl font-bold mt-1">Rp 0</div>
+            </div>
+            <div class="p-4 rounded-lg bg-slate-50">
+              <div class="text-sm text-slate-500">Saldo (Income - Expense)</div>
+              <div id="balance" class="text-xl font-bold mt-1">Rp 0</div>
+            </div>
+          </div>
+
+          <div class="mt-6" style="height:260px">
+            <canvas id="chart"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold">Daftar Transaksi</h3>
+            <div class="text-sm text-slate-500">Urut: <select id="sortSelect" class="ml-2 p-1 border rounded-md"><option value="date_desc">Terbaru</option><option value="date_asc">Terlama</option></select></div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead class="text-sm text-slate-500 border-b">
+                <tr>
+                  <th class="py-2">Tanggal</th>
+                  <th>Kategori</th>
+                  <th>Catatan</th>
+                  <th class="text-right">Jumlah (Rp)</th>
+                  <th class="text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody" class="text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="mt-6 text-center text-sm text-slate-500">Buat olehmu · Simpel & privat (data tersimpan lokal). Ingin sinkron ke server atau Google Sheets? Kita bisa lanjutkan.</footer>
+  </div>
+
+
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <script>
+    // Keys
+    const USERS_KEY = 'expense_tracker_users_v1';
+    const CURRENT_USER_KEY = 'expense_tracker_current_user_v1';
+    const STORAGE_KEY_PREFIX = 'expense_tracker_entries_v1_';
+
+    // Helpers
+    const qs = (s)=>document.querySelector(s);
+    const qsa = (s)=>document.querySelectorAll(s);
+    const fmtRp = (n)=>'Rp '+Number(n).toLocaleString('id-ID');
+    const uid = ()=>Math.random().toString(36).slice(2,9);
+    const debounce = (fn, t=150)=>{ let h; return (...a)=>{ clearTimeout(h); h=setTimeout(()=>fn(...a), t); }};
+
+    // Elements
+    const entryForm = qs('#entryForm');
+    const dateEl = qs('#date');
+    const typeEl = qs('#type');
+    const categoryEl = qs('#category');
+    const amountEl = qs('#amount');
+    const noteEl = qs('#note');
+    const tableBody = qs('#tableBody');
+    const totalIncomeEl = qs('#totalIncome');
+    const totalExpenseEl = qs('#totalExpense');
+    const balanceEl = qs('#balance');
+    const exportBtn = qs('#exportXlsx');
+    const importBtn = qs('#importCsv');
+    const sampleBtn = qs('#sampleData');
+    const clearAllBtn = qs('#clearAll');
+    const filterText = qs('#filterText');
+    const sortSelect = qs('#sortSelect');
+    const chartCtx = qs('#chart');
+    const userControls = qs('#userControls');
+
+    let entries = [];
+    let chartInstance = null;
+
+    // --- crypto helper for hashing password (SHA-256 hex) ---
+    async function sha256Hex(str){
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    // --- simple user store (local only) ---
+    function loadUsers(){
+      try{ return JSON.parse(localStorage.getItem(USERS_KEY))||[] }catch(e){return[]}
+    }
+    function saveUsers(u){ localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+
+    async function createUser(email, password){
+      const users = loadUsers();
+      if(users.find(x=>x.email===email)) throw new Error('Email sudah terdaftar');
+      const id = uid();
+      const hash = await sha256Hex(password);
+      users.push({id, email, passwordHash:hash, createdAt: new Date().toISOString()});
+      saveUsers(users);
+      return {id, email};
+    }
+
+    async function loginUser(email, password){
+      const users = loadUsers();
+      const u = users.find(x=>x.email===email);
+      if(!u) throw new Error('Pengguna tidak ditemukan');
+      const hash = await sha256Hex(password);
+      if(hash !== u.passwordHash) throw new Error('Password salah');
+      return {id: u.id, email: u.email};
+    }
+
+    function setCurrentUser(user){
+      if(!user) localStorage.removeItem(CURRENT_USER_KEY);
+      else localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+      renderUserControls();
+    }
+    function getCurrentUser(){ try{ return JSON.parse(localStorage.getItem(CURRENT_USER_KEY)) }catch(e){return null} }
+
+    // storage key per user
+    function getStorageKey(){ const u = getCurrentUser(); return STORAGE_KEY_PREFIX + (u? u.id : 'guest'); }
+
+    // Load & save entries for current user
+    function loadEntries(){
+      const raw = localStorage.getItem(getStorageKey());
+      try{ entries = raw? JSON.parse(raw): [] }catch(e){ entries = [] }
+    }
+    function saveEntries(){ localStorage.setItem(getStorageKey(), JSON.stringify(entries)); }
+
+    function renderUserControls(){
+      const u = getCurrentUser();
+      if(u){
+        userControls.innerHTML = `<div class="flex items-center gap-3"><div class="text-slate-600">${u.email}</div><button id="logoutBtn" class="text-sm bg-slate-100 p-2 rounded-md">Keluar</button></div>`;
+        qs('#logoutBtn').addEventListener('click', ()=>{
+          alert('Logout berhasil');
+          setCurrentUser(null);
+          window.location.href = 'login.html';
+        });
+      }
+    }
+
+    // --- Render table and summary & chart (fixed to update without destroying on resize) ---
+    function render(){
+      // filter
+      const filter = filterText.value.trim().toLowerCase();
+      let list = entries.slice();
+      if(filter) list = list.filter(e=> (e.category||'').toLowerCase().includes(filter) || (e.note||'').toLowerCase().includes(filter));
+
+      // sort
+      const sort = sortSelect.value;
+      list.sort((a,b)=>{
+        const da = new Date(a.date).getTime();
+        const db = new Date(b.date).getTime();
+        if(sort==='date_desc') return db-da; else return da-db;
+      });
+
+      // table
+      tableBody.innerHTML = '';
+      for(const e of list){
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        const am = Number(e.amount||0);
+        tr.innerHTML = `
+          <td class="py-2 align-top">${e.date}</td>
+          <td class="align-top">${e.category||'-'}</td>
+          <td class="align-top">${e.note||'-'}</td>
+          <td class="text-right align-top font-medium">${e.type==='income'? fmtRp(am): '-'+fmtRp(am)}</td>
+          <td class="text-right align-top"> <button data-id="${e.id}" class="editBtn text-indigo-600 mr-2">Edit</button> <button data-id="${e.id}" class="delBtn text-red-600">Hapus</button></td>
+        `;
+        tableBody.appendChild(tr);
+      }
+
+      // actions
+      qsa('.delBtn').forEach(b=> b.addEventListener('click', ()=>{ if(confirm('Hapus transaksi?')){ deleteEntry(b.dataset.id) }}));
+      qsa('.editBtn').forEach(b=> b.addEventListener('click', ()=>{
+        const id = b.dataset.id; const e = entries.find(x=>x.id===id);
+        if(!e) return;
+        dateEl.value = e.date; typeEl.value = e.type; categoryEl.value = e.category; amountEl.value = e.amount; noteEl.value = e.note;
+        entryForm.dataset.editId = id;
+        window.scrollTo({top:0, behavior:'smooth'});
+      }));
+
+      // summary
+      const income = entries.filter(x=>x.type==='income').reduce((s,x)=>s+Number(x.amount||0),0);
+      const expense = entries.filter(x=>x.type==='expense').reduce((s,x)=>s+Number(x.amount||0),0);
+      totalIncomeEl.textContent = fmtRp(income);
+      totalExpenseEl.textContent = fmtRp(expense);
+      balanceEl.textContent = fmtRp(income - expense);
+
+      // chart (group by date)
+      const byDate = {};
+      for(const e of entries){
+        const d = e.date || 'Unknown';
+        if(!byDate[d]) byDate[d] = 0;
+        byDate[d] += e.type==='income'? Number(e.amount||0): -Number(e.amount||0);
+      }
+      const labels = Object.keys(byDate).sort((a,b)=>new Date(a)-new Date(b));
+      const values = labels.map(l=>byDate[l]);
+
+      // create or update chart without destructive recreate to avoid flicker on resize
+      if(!chartInstance){
+        chartInstance = new Chart(chartCtx, {
+          type:'bar',
+          data:{ labels, datasets:[{ label:'Saldo per Tanggal', data:values }]},
+          options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            animation:false,
+            plugins:{legend:{display:false}},
+            scales:{ y:{ beginAtZero:true } }
+          }
+        });
+      } else {
+        chartInstance.data.labels = labels;
+        chartInstance.data.datasets[0].data = values;
+        chartInstance.options.animation = false;
+        chartInstance.update();
+        // do a gentle resize (debounced handler below watches window resize too)
+        try{ chartInstance.resize(); }catch(e){}
+      }
+    }
+
+    // Form submit
+    entryForm.addEventListener('submit', (ev)=>{
+      ev.preventDefault();
+      const data = {
+        id: entryForm.dataset.editId || uid(),
+        date: dateEl.value || new Date().toISOString().slice(0,10),
+        type: typeEl.value,
+        category: categoryEl.value.trim(),
+        amount: Math.abs(Number(amountEl.value||0)),
+        note: noteEl.value.trim(),
+      };
+      if(entryForm.dataset.editId){
+        updateEntry(data.id, data);
+        delete entryForm.dataset.editId;
+      } else addEntry(data);
+      entryForm.reset();
+    });
+
+    qs('#clearForm').addEventListener('click', ()=>{ entryForm.reset(); delete entryForm.dataset.editId; });
+
+    // CRUD
+    function addEntry(entry){ entries.push(entry); saveEntries(); render(); }
+    function updateEntry(id, updated){ entries = entries.map(e=> e.id===id? {...e, ...updated}: e); saveEntries(); render(); }
+    function deleteEntry(id){ entries = entries.filter(e=> e.id!==id); saveEntries(); render(); }
+
+    // Export to xlsx using SheetJS
+    exportBtn.addEventListener('click', ()=>{
+      if(!entries.length){ alert('Belum ada data untuk diekspor'); return }
+      const ws_data = [['Tanggal','Tipe','Kategori','Catatan','Jumlah']];
+      for(const e of entries) ws_data.push([e.date, e.type, e.category||'', e.note||'', Number(e.amount||0)]);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Transaksi');
+      const user = getCurrentUser();
+      const filename = (user? user.email.replace(/[^a-z0-9]/gi,'_') : 'data') + '_transaksi.xlsx';
+      XLSX.writeFile(wb, filename);
+    });
+
+    // Import CSV / XLSX (simple)
+    importBtn.addEventListener('click', ()=>{
+      const input = document.createElement('input'); input.type='file'; input.accept='.csv,.xlsx,.xls';
+      input.addEventListener('change', async ()=>{
+        const f = input.files[0]; if(!f) return;
+        const name = f.name.toLowerCase();
+        if(name.endsWith('.csv')){
+          const text = await f.text();
+          const rows = text.split(/\r?\n/).map(r => r.split(','));
+          const header = rows.shift().map(h=>h.trim().toLowerCase());
+          const mapIndex = (key)=> header.indexOf(key);
+          for(const r of rows){ if(r.length<2) continue; const obj = { id: uid(), date: r[mapIndex('date')]||new Date().toISOString().slice(0,10), type: r[mapIndex('type')]||'expense', category: r[mapIndex('category')], note: r[mapIndex('note')], amount: Number(r[mapIndex('amount')]||0) }; entries.push(obj); }
+          saveEntries();
+          alert('Import CSV selesai');
+        } else {
+          const data = await f.arrayBuffer();
+          const wb = XLSX.read(data, {type:'array'});
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(ws, {defval:''});
+          for(const r of json){ entries.push({ id: uid(), date: r.Tanggal||r.date||r.tanggal||new Date().toISOString().slice(0,10), type: r.Tipe||r.type||'expense', category: r.Kategori||r.category||'', note: r.Catatan||r.note||'', amount: Number(r.Jumlah||r.jumlah||r.Amount||r.amount||0) }) }
+          saveEntries(); alert('Import Excel selesai');
+        }
+        render();
+      });
+      input.click();
+    });
+
+    // sample & clear
+    sampleBtn.addEventListener('click', ()=>{
+      const d = new Date(); const today = d.toISOString().slice(0,10);
+      entries.push({id:uid(), date:today, type:'income', category:'Gaji', note:'Gaji bulanan', amount:5000000});
+      entries.push({id:uid(), date:today, type:'expense', category:'Makan', note:'Makan siang', amount:45000});
+      entries.push({id:uid(), date:today, type:'expense', category:'Transport', note:'Gojek', amount:20000});
+      saveEntries(); render();
+    });
+
+    clearAllBtn.addEventListener('click', ()=>{ if(confirm('Hapus semua data?')){ entries=[]; saveEntries(); render(); }});
+
+    // live filters
+    filterText.addEventListener('input', render);
+    sortSelect.addEventListener('change', render);
+
+    // debounce resize to avoid flicker
+    window.addEventListener('resize', debounce(()=>{ if(chartInstance){ chartInstance.options.animation = false; try{ chartInstance.resize(); chartInstance.update(); }catch(e){} } }, 120));
+
+    // init for current user
+    function initForUser(){
+      renderUserControls();
+      loadEntries();
+      render();
+    }
+
+    // initial load
+    (function(){
+      const cur = getCurrentUser();
+      if(!cur) { window.location.href = 'login.html'; }
+      else { initForUser(); }
+      // prefill today's date
+      dateEl.value = new Date().toISOString().slice(0,10);
+    })();
+
+    // Notes about hosting & next steps (not code):
+    // - Saat ini: autentikasi dan data sepenuhnya lokal di browser (aman untuk demo, cocok di GitHub Pages).
+    // - Untuk multi-device & akun nyata: integrasikan Firebase Auth + Firestore atau Supabase (kita bisa implementasikan dan saya bantu konfigurasinya).
+    // - Jika mau, saya bisa ubah file ini supaya sinkron ke Firebase (kamu perlu buat project & beri aku config), atau ke Supabase (sama butuh project & keys).
+
+  </script>
+</body>
+</html>

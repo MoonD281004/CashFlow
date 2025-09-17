@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login - Expense & Income Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}</style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-6">
+  <div class="bg-white rounded-2xl p-8 shadow-lg w-full max-w-md">
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-violet-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">¥</div>
+      <h1 class="text-2xl font-extrabold">Pencatatan Pemasukan & Pengeluaran</h1>
+      <p class="text-sm text-slate-500">Masuk untuk melanjutkan</p>
+    </div>
+
+    <div class="space-y-4">
+      <input id="authEmail" placeholder="Email" class="w-full p-3 border rounded-lg" type="email">
+      <input id="authPassword" placeholder="Password" class="w-full p-3 border rounded-lg" type="password">
+      <input id="authPasswordConfirm" placeholder="Konfirmasi Password (daftar)" class="w-full p-3 border rounded-lg hidden" type="password">
+      <div class="flex gap-2">
+        <button id="authLoginBtn" class="flex-1 bg-indigo-600 text-white p-3 rounded-lg font-semibold">Masuk</button>
+        <button id="authToggleRegister" class="flex-1 border p-3 rounded-lg">Daftar</button>
+      </div>
+      <div class="text-xs text-slate-500 text-center">Buat akun lokal agar data terpisah per pengguna. <strong>Ini hanya demo lokal</strong>.</div>
+    </div>
+  </div>
+
+  <script>
+    // Keys
+    const USERS_KEY = 'expense_tracker_users_v1';
+    const CURRENT_USER_KEY = 'expense_tracker_current_user_v1';
+
+    // Helpers
+    const qs = (s)=>document.querySelector(s);
+
+    // Elements
+    const authEmail = qs('#authEmail');
+    const authPassword = qs('#authPassword');
+    const authPasswordConfirm = qs('#authPasswordConfirm');
+    const authLoginBtn = qs('#authLoginBtn');
+    const authToggleRegister = qs('#authToggleRegister');
+
+    let isRegisterMode = false;
+
+    // --- crypto helper for hashing password (SHA-256 hex) ---
+    async function sha256Hex(str){
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    // --- simple user store (local only) ---
+    function loadUsers(){
+      try{ return JSON.parse(localStorage.getItem(USERS_KEY))||[] }catch(e){return[]}
+    }
+    function saveUsers(u){ localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+
+    async function createUser(email, password){
+      const users = loadUsers();
+      if(users.find(x=>x.email===email)) throw new Error('Email sudah terdaftar');
+      const id = Math.random().toString(36).slice(2,9);
+      const hash = await sha256Hex(password);
+      users.push({id, email, passwordHash:hash, createdAt: new Date().toISOString()});
+      saveUsers(users);
+      return {id, email};
+    }
+
+    async function loginUser(email, password){
+      const users = loadUsers();
+      const u = users.find(x=>x.email===email);
+      if(!u) throw new Error('Pengguna tidak ditemukan');
+      const hash = await sha256Hex(password);
+      if(hash !== u.passwordHash) throw new Error('Password salah');
+      return {id: u.id, email: u.email};
+    }
+
+    function setCurrentUser(user){
+      if(!user) localStorage.removeItem(CURRENT_USER_KEY);
+      else localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    }
+
+    // --- Auth handlers ---
+    authToggleRegister.addEventListener('click', ()=>{
+      isRegisterMode = !isRegisterMode;
+      if(isRegisterMode){
+        authPasswordConfirm.classList.remove('hidden');
+        authLoginBtn.textContent='Daftar';
+      } else {
+        authPasswordConfirm.classList.add('hidden');
+        authLoginBtn.textContent='Masuk';
+      }
+    });
+
+    authLoginBtn.addEventListener('click', async ()=>{
+      const email = (authEmail.value||'').trim().toLowerCase();
+      const pass = authPassword.value||'';
+      if(!email || !pass){ alert('Isi email & password'); return }
+      try{
+        if(isRegisterMode){
+          const passConfirm = authPasswordConfirm.value||'';
+          if(pass !== passConfirm){ alert('Konfirmasi password tidak cocok'); return }
+          const user = await createUser(email, pass);
+          setCurrentUser(user);
+          window.location.href = 'PerhitunganPengeluaranPublish.html';
+        } else {
+          const user = await loginUser(email, pass);
+          setCurrentUser(user);
+          window.location.href = 'PerhitunganPengeluaranPublish.html';
+        }
+      }catch(err){ alert(err.message || 'Gagal otentikasi') }
+    });
+
+    // Check if already logged in, redirect to app
+    (function(){
+      const cur = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+      if(cur) window.location.href = 'PerhitunganPengeluaranPublish.html';
+    })();
+  </script>
+</body>
+</html>
