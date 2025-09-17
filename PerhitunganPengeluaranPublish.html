@@ -405,7 +405,7 @@
     // initial load
     (function(){
       const cur = getCurrentUser();
-      if(!cur) { window.location.href = 'login.html'; }
+      if(!cur) { window.location.href = 'index.html'; }
       else { initForUser(); }
       // prefill today's date
       dateEl.value = new Date().toISOString().slice(0,10);
@@ -419,3 +419,4 @@
   </script>
 </body>
 </html>
+
